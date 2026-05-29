@@ -14,7 +14,6 @@ function App() {
     const [audioData, setAudioData] = useState({ title: null, artist: null, bpm: null, keyName: null });
     const [error, setError] = useState(null);
 
-    // Genera automaticamente l'Access Token di Spotify all'avvio dell'app
     useEffect(() => {
         const fetchToken = async () => {
             try {
@@ -37,7 +36,6 @@ function App() {
         fetchToken();
     }, []);
 
-    // Funzione per leggere Titolo e Artista dal file MP3
     const getTrackTags = (file) => {
         return new Promise((resolve) => {
             jsmediatags.read(file, {
@@ -55,11 +53,9 @@ function App() {
         });
     };
 
-    // Funzione che cerca la traccia su Spotify e ne ottiene le caratteristiche audio (Key)
     const getSpotifyAudioFeatures = async (title, artist, bpm) => {
         if (!accessToken) return null;
 
-        // 1. Cerca la canzone su Spotify
         const query = encodeURIComponent(`track:${title} artist:${artist}`);
         const searchResponse = await fetch(`https://api.spotify.com/v1/search?q=${query}&type=track&limit=1`, {
             headers: { 'Authorization': `Bearer ${accessToken}` }
@@ -68,18 +64,16 @@ function App() {
         const track = searchData.tracks?.items[0];
 
         if (!track) {
-            // Se non la trova combinata, prova a cercare solo con il titolo del file
             return null;
         }
 
-        // 2. Prendi le Audio Features (Key e Mode) usando l'ID di Spotify della traccia
         const featuresResponse = await fetch(`https://api.spotify.com/v1/audio-features/${track.id}`, {
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
         const featuresData = await featuresResponse.json();
 
         const notaBase = NOTE_NAMES[featuresData.key];
-        const tipoModo = featuresData.mode === 0 ? 'm' : ''; // 0 = minore, 1 = maggiore
+        const tipoModo = featuresData.mode === 0 ? 'm' : '';
 
         return {
             keyName: `${notaBase}${tipoModo}`,
@@ -99,7 +93,6 @@ function App() {
         setAudioData({ title: null, artist: null, bpm: null, keyName: null });
 
         try {
-            // 1. Calcola i BPM reali dall'audio (funziona sempre localmente)
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             const audioCtx = new AudioContext();
             const arrayBuffer = await uploadedFile.arrayBuffer();
@@ -107,13 +100,11 @@ function App() {
             const tempo = await analyze(audioBuffer);
             const roundedBpm = Math.round(tempo);
 
-            // 2. Leggi i tag dal file (Titolo e Artista)
             const tags = await getTrackTags(uploadedFile);
 
-            let trackTitle = tags.title || uploadedFile.name.replace(/\.[^/.]+$/, ""); // se non ha tag usa il nome del file
+            let trackTitle = tags.title || uploadedFile.name.replace(/\.[^/.]+$/, "");
             let trackArtist = tags.artist || "";
 
-            // 3. Chiedi la Key reale a Spotify
             const spotifyData = await getSpotifyAudioFeatures(trackTitle, trackArtist, roundedBpm);
 
             if (spotifyData) {
@@ -124,7 +115,6 @@ function App() {
                     keyName: spotifyData.keyName
                 });
             } else {
-                // Se Spotify non trova la canzone nel suo database
                 setAudioData({
                     title: trackTitle,
                     artist: trackArtist,
@@ -151,7 +141,7 @@ function App() {
         <div className="container py-5 text-white" style={{ minHeight: '100vh', backgroundColor: '#121212' }}>
 
             <header className="text-center mb-5">
-                <h1 className="display-4 fw-bold text-success">CrateDigger</h1>
+                <h1 className="display-4 fw-bold text-success">BeatsBlend</h1>
                 <p className="lead text-muted">Trova la traccia perfetta per il tuo prossimo mix armonico</p>
             </header>
 
