@@ -1,122 +1,90 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useState, useCallback } from 'react';
+import { useDropzone } from 'react-dropzone';
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [file, setFile] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [audioData, setAudioData] = useState({ bpm: null, key: null });
+
+  const onDrop = useCallback((acceptedFiles) => {
+    const uploadedFile = acceptedFiles[0];
+    if (!uploadedFile) return;
+
+    setFile(uploadedFile);
+    setLoading(true);
+
+    console.log("File ricevuto:", uploadedFile.name);
+    
+    setTimeout(() => {
+      setLoading(false);
+      setAudioData({ bpm: 124, key: '8A' });
+    }, 2000);
+
+  }, []);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: { 'audio/*': ['.mp3', '.wav', '.m4a'] },
+    multiple: false 
+  });
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div className="container py-5 text-white" style={{ minHeight: '100vh', backgroundColor: '#121212' }}>
+      
+      <header className="text-center mb-5">
+        <h1 className="display-4 fw-bold text-success">CrateDigger</h1>
+        <p className="lead text-muted">Trova la traccia perfetta per il tuo prossimo mix armonico</p>
+      </header>
 
-      <div className="ticks"></div>
+      <div className="row justify-content-center">
+        <div className="col-md-8">
+          
+          <div 
+            {...getRootProps()} 
+            className={`p-5 text-center border border-2 rounded-3 cp-pointer ${
+              isDragActive ? 'border-success bg-dark' : 'border-secondary'
+            }`}
+            style={{ cursor: 'pointer', borderStyle: 'dashed !important', transition: '0.2s' }}
+          >
+            <input {...getInputProps()} />
+            <i className="bi bi-cloud-upload display-3 text-secondary mb-3"></i>
+            {isDragActive ? (
+              <p className="fs-5 text-success">Lascia qui il file...</p>
+            ) : (
+              <p className="fs-5">Trascina qui il tuo file MP3 o <span className="text-success">clicca per cercarlo</span></p>
+            )}
+            <small className="text-muted">Supporta MP3, WAV, M4A</small>
+          </div>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+          {loading && (
+            <div className="text-center my-5">
+              <div className="spinner-border text-success" role="status">
+                <span className="visually-hidden">Analisi in corso...</span>
+              </div>
+              <p className="mt-2 text-muted">Analizzando la traccia (BPM & Key)...</p>
+            </div>
+          )}
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+          {audioData.bpm && !loading && (
+            <div className="card bg-dark text-white border-secondary mt-5 p-4 animate__animated animate__fadeIn">
+              <h3 className="h5 mb-3 text-muted">Traccia Analizzata: <span className="text-white">{file?.name}</span></h3>
+              <div className="row text-center">
+                <div className="col-6 border-end border-secondary">
+                  <span className="text-muted d-block small uppercase fw-bold">TEMPO</span>
+                  <span className="display-5 fw-bold text-success">{audioData.bpm}</span> <span className="text-muted">BPM</span>
+                </div>
+                <div className="col-6">
+                  <span className="text-muted d-block small uppercase fw-bold">KEY (CAMELOT)</span>
+                  <span className="display-5 fw-bold text-info">{audioData.key}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
+      </div>
+    </div>
+  );
 }
 
-export default App
+export default App;
