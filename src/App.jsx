@@ -8,10 +8,10 @@ const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 
 const CLIENT_ID = "bbfc9788c582499bb4a34241b13bd6e8";
 const REDIRECT_URI = window.location.origin + "/";
 const AUTH_ENDPOINT = "https://accounts.spotify.com/authorize";
-const RESPONSE_TYPE = "token";
+const RESPONSE_TYPE = "code";
 
 function App() {
-    const [token, setToken] = useState("");
+    const [code, setCode] = useState("");
     const [file, setFile] = useState(null);
     const [loading, setLoading] = useState(false);
     const [audioData, setAudioData] = useState({ title: null, artist: null, bpm: null, keyName: null });
@@ -19,23 +19,23 @@ function App() {
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        const hash = window.location.hash;
-        let localToken = window.localStorage.getItem("spotify_user_token");
+        const searchParams = new URLSearchParams(window.location.search);
+        let localCode = window.localStorage.getItem("spotify_auth_code");
+        const codeFromUrl = searchParams.get("code");
 
-        if (!localToken && hash) {
-            const tokenUrl = hash.substring(1).split("&").find(elem => elem.startsWith("access_token"));
-            if (tokenUrl) {
-                localToken = tokenUrl.split("=")[1];
-                window.location.hash = "";
-                window.localStorage.setItem("spotify_user_token", localToken);
-            }
+        if (!localCode && codeFromUrl) {
+            localCode = codeFromUrl;
+            // Pulisce l'URL per estetica e sicurezza
+            window.history.pushState({}, document.title, window.location.pathname);
+            window.localStorage.setItem("spotify_auth_code", localCode);
         }
-        if (localToken) setToken(localToken);
+
+        if (localCode) setCode(localCode);
     }, []);
 
     const logout = () => {
-        setToken("");
-        window.localStorage.removeItem("spotify_user_token");
+        setCode("");
+        window.localStorage.removeItem("spotify_auth_code");
         setRecommendations([]);
         setFile(null);
     };
@@ -69,28 +69,33 @@ function App() {
         return { keyName: `${NOTE_NAMES[dominantKeyIndex]}${isMinor ? 'm' : ''}` };
     };
 
-    const fetchRecommendations = async (title, artist, targetBpm) => {
+    const fetchRecommendations = async (title, artist) => {
         try {
-            const searchQuery = encodeURIComponent(`track:${title} ${artist}`);
+            const searchQuery = encodeURIComponent(`track:${title} artist:${artist}`);
             const searchRes = await fetch(`https://api.spotify.com/v1/search?q=${searchQuery}&type=track&limit=1`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: { 'Authorization': `Bearer ${window.localStorage.getItem("spotify_auth_code")}` } // Usiamo il codice memorizzato
             });
+
+            if (!searchRes.ok) {
+                console.log("Errore di autenticazione o token scaduto.");
+                return;
+            }
+
             const searchData = await searchRes.json();
             const trackId = searchData.tracks?.items[0]?.id;
 
             if (!trackId) {
-                console.log("Brano non trovato nel catalogo Spotify, impossibile generare raccomandazioni mirate.");
+                console.log("Traccia non trovata nel catalogo di Spotify.");
                 return;
             }
-
-            const recRes = await fetch(`https://accounts.spotify.com/authorize2{trackId}&limit=30`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+            const recRes = await fetch(`https://api.spotify.com/v1/recommendations?seed_tracks=${trackId}&limit=20`, {
+                headers: { 'Authorization': `Bearer ${window.localStorage.getItem("spotify_auth_code")}` }
             });
             const recData = await recRes.json();
             setRecommendations(recData.tracks || []);
 
         } catch (err) {
-            console.error("Errore nelle raccomandazioni:", err);
+            console.error("Errore nel recupero dei consigli:", err);
         }
     };
 
@@ -119,7 +124,7 @@ function App() {
 
             setAudioData({ title: trackTitle, artist: trackArtist, bpm: roundedBpm, keyName: calculatedKey.keyName });
 
-            if (token) {
+            if (code) {
                 await fetchRecommendations(trackTitle, trackArtist, roundedBpm);
             }
 
@@ -129,7 +134,7 @@ function App() {
         } finally {
             setLoading(false);
         }
-    }, [token]);
+    }, [code]);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
@@ -141,7 +146,7 @@ function App() {
         <div className="container py-5 text-white" style={{ minHeight: '100vh', backgroundColor: '#121212' }}>
 
             <div className="d-flex justify-content-end mb-4">
-                {!token ? (
+                {!code ? (
                     <a href={`${AUTH_ENDPOINT}?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=${RESPONSE_TYPE}`} className="btn btn-success fw-bold rounded-pill px-4">
                         Connetti Spotify
                     </a>
@@ -155,7 +160,7 @@ function App() {
                 <p className="lead text-muted">Trova nuova musica da scavare compatibile con i tuoi brani</p>
             </header>
 
-            {!token ? (
+            {!code ? (
                 <div className="text-center py-5">
                     <p className="fs-5 text-muted">Effettua il login con il tuo account Spotify per scoprire nuove tracce correlate.</p>
                 </div>
