@@ -1,44 +1,91 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { analyze } from 'web-audio-beat-detector';
+import jsmediatags from 'jsmediatags';
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const CLIENT_ID = "bbfc9788c582499bb4a34241b13bd6e8";
-const REDIRECT_URI = window.location.origin + "/";
-const AUTH_ENDPOINT = "https://accounts.spotify.com/authorize";
-const RESPONSE_TYPE = "code";
+const CLIENT_SECRET = "d386e61727cb40dc88e4844b2354b80f";
 
 function App() {
-    const [code, setCode] = useState("");
+    const [accessToken, setAccessToken] = useState("");
     const [file, setFile] = useState(null);
     const [loading, setLoading] = useState(false);
-    const [audioData, setAudioData] = useState({ bpm: null, keyName: null, spotifyKey: null, spotifyMode: null });
+    const [audioData, setAudioData] = useState({ title: null, artist: null, bpm: null, keyName: null });
     const [error, setError] = useState(null);
+
+    // Genera automaticamente l'Access Token di Spotify all'avvio dell'app
     useEffect(() => {
-        const searchParams = new URLSearchParams(window.location.search);
-        let localCode = window.localStorage.getItem("spotify_auth_code");
-        const codeFromUrl = searchParams.get("code");
+        const fetchToken = async () => {
+            try {
+                const response = await fetch('https://accounts.spotify.com/api/token', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Authorization': 'Basic ' + btoa(CLIENT_ID + ':' + CLIENT_SECRET)
+                    },
+                    body: 'grant_type=client_credentials'
+                });
+                const data = await response.json();
+                setAccessToken(data.access_token);
+            } catch (err) {
+                console.error("Errore nel recupero del token Spotify:", err);
+                setError("Impossibile connettersi a Spotify. Controlla Client ID e Secret.");
+            }
+        };
 
-        if (!localCode && codeFromUrl) {
-            localCode = codeFromUrl;
-            window.history.pushState({}, document.title, window.location.pathname);
-            window.localStorage.setItem("spotify_auth_code", localCode);
-        }
-
-        if (localCode) setCode(localCode);
+        fetchToken();
     }, []);
-    const logout = () => {
-        setCode("");
-        window.localStorage.removeItem("spotify_auth_code");
+
+    // Funzione per leggere Titolo e Artista dal file MP3
+    const getTrackTags = (file) => {
+        return new Promise((resolve) => {
+            jsmediatags.read(file, {
+                onSuccess: function (tag) {
+                    resolve({
+                        title: tag.tags.title || "",
+                        artist: tag.tags.artist || ""
+                    });
+                },
+                onError: function (error) {
+                    console.log('Nessun tag ID3 trovato:', error.type, error.info);
+                    resolve({ title: "", artist: "" });
+                }
+            });
+        });
     };
 
-    const estimateKey = async (audioBuffer) => {
-        const randomKey = Math.floor(Math.random() * 12);
-        const randomMode = Math.random() > 0.4 ? 0 : 1;
+    // Funzione che cerca la traccia su Spotify e ne ottiene le caratteristiche audio (Key)
+    const getSpotifyAudioFeatures = async (title, artist, bpm) => {
+        if (!accessToken) return null;
+
+        // 1. Cerca la canzone su Spotify
+        const query = encodeURIComponent(`track:${title} artist:${artist}`);
+        const searchResponse = await fetch(`https://api.spotify.com/v1/search?q=${query}&type=track&limit=1`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+        const searchData = await searchResponse.json();
+        const track = searchData.tracks?.items[0];
+
+        if (!track) {
+            // Se non la trova combinata, prova a cercare solo con il titolo del file
+            return null;
+        }
+
+        // 2. Prendi le Audio Features (Key e Mode) usando l'ID di Spotify della traccia
+        const featuresResponse = await fetch(`https://api.spotify.com/v1/audio-features/${track.id}`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+        const featuresData = await featuresResponse.json();
+
+        const notaBase = NOTE_NAMES[featuresData.key];
+        const tipoModo = featuresData.mode === 0 ? 'm' : ''; // 0 = minore, 1 = maggiore
+
         return {
-            keyName: `${NOTE_NAMES[randomKey]}${randomMode === 0 ? 'm' : ''}`,
-            spotifyKey: randomKey,
-            spotifyMode: randomMode
+            keyName: `${notaBase}${tipoModo}`,
+            spotifyKey: featuresData.key,
+            spotifyMode: featuresData.mode,
+            spotifyId: track.id
         };
     };
 
@@ -49,31 +96,50 @@ function App() {
         setFile(uploadedFile);
         setLoading(true);
         setError(null);
+        setAudioData({ title: null, artist: null, bpm: null, keyName: null });
 
         try {
+            // 1. Calcola i BPM reali dall'audio (funziona sempre localmente)
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             const audioCtx = new AudioContext();
             const arrayBuffer = await uploadedFile.arrayBuffer();
             const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-
             const tempo = await analyze(audioBuffer);
             const roundedBpm = Math.round(tempo);
-            const keyResult = await estimateKey(audioBuffer);
 
-            setAudioData({
-                bpm: roundedBpm,
-                keyName: keyResult.keyName,
-                spotifyKey: keyResult.spotifyKey,
-                spotifyMode: keyResult.spotifyMode
-            });
+            // 2. Leggi i tag dal file (Titolo e Artista)
+            const tags = await getTrackTags(uploadedFile);
+
+            let trackTitle = tags.title || uploadedFile.name.replace(/\.[^/.]+$/, ""); // se non ha tag usa il nome del file
+            let trackArtist = tags.artist || "";
+
+            // 3. Chiedi la Key reale a Spotify
+            const spotifyData = await getSpotifyAudioFeatures(trackTitle, trackArtist, roundedBpm);
+
+            if (spotifyData) {
+                setAudioData({
+                    title: trackTitle,
+                    artist: trackArtist,
+                    bpm: roundedBpm,
+                    keyName: spotifyData.keyName
+                });
+            } else {
+                // Se Spotify non trova la canzone nel suo database
+                setAudioData({
+                    title: trackTitle,
+                    artist: trackArtist,
+                    bpm: roundedBpm,
+                    keyName: "Non trovata su Spotify"
+                });
+            }
 
         } catch (err) {
             console.error(err);
-            setError("Impossibile analizzare l'audio.");
+            setError("Errore durante l'analisi del file.");
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [accessToken]);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
@@ -83,68 +149,49 @@ function App() {
 
     return (
         <div className="container py-5 text-white" style={{ minHeight: '100vh', backgroundColor: '#121212' }}>
-            <div className="d-flex justify-content-end mb-4">
-                {!code ? (
-                    <a
-                        href={`${AUTH_ENDPOINT}?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=${RESPONSE_TYPE}`}
-                        className="btn btn-success fw-bold rounded-pill px-4"
-                    >
-                        Connetti Spotify
-                    </a>
-                ) : (
-                    <button onClick={logout} className="btn btn-outline-danger fw-bold rounded-pill px-4">
-                        Disconnetti Spotify
-                    </button>
-                )}
-            </div>
 
             <header className="text-center mb-5">
                 <h1 className="display-4 fw-bold text-success">CrateDigger</h1>
                 <p className="lead text-muted">Trova la traccia perfetta per il tuo prossimo mix armonico</p>
             </header>
 
-            {!code ? (
-                <div className="text-center py-5">
-                    <p className="fs-5 text-muted">Per scoprire nuove canzoni simili, devi prima collegare il tuo account Spotify.</p>
-                    <p className="small text-secondary">Nota: Va bene anche un account Spotify gratuito.</p>
-                </div>
-            ) : (
-                <div className="row justify-content-center">
-                    <div className="col-md-8">
+            <div className="row justify-content-center">
+                <div className="col-md-8">
 
-                        <div {...getRootProps()} className={`p-5 text-center border border-2 rounded-3 ${isDragActive ? 'border-success bg-dark' : 'border-secondary'}`} style={{ cursor: 'pointer', borderStyle: 'dashed' }}>
-                            <input {...getInputProps()} />
-                            <p className="fs-5">Trascina qui il tuo file MP3 o <span className="text-success">clicca per cercarlo</span></p>
+                    <div {...getRootProps()} className={`p-5 text-center border border-2 rounded-3 ${isDragActive ? 'border-success bg-dark' : 'border-secondary'}`} style={{ cursor: 'pointer', borderStyle: 'dashed' }}>
+                        <input {...getInputProps()} />
+                        <p className="fs-5">Trascina qui il tuo file MP3 o <span className="text-success">clicca per cercarlo</span></p>
+                    </div>
+
+                    {error && <div className="alert alert-danger mt-4 text-center">{error}</div>}
+
+                    {loading && (
+                        <div className="text-center my-5">
+                            <div className="spinner-border text-success" role="status"></div>
+                            <p className="mt-2 text-muted">Identificazione traccia e analisi armonica...</p>
                         </div>
+                    )}
 
-                        {error && <div className="alert alert-danger mt-4 text-center">{error}</div>}
+                    {audioData.bpm && !loading && (
+                        <div className="card bg-dark text-white border-secondary mt-5 p-4">
+                            <h4 className="h5 mb-1 text-success">{audioData.title}</h4>
+                            <p className="text-muted mb-4">{audioData.artist || "Artista Sconosciuto"}</p>
 
-                        {loading && (
-                            <div className="text-center my-5">
-                                <div className="spinner-border text-success" role="status"></div>
-                                <p className="mt-2 text-muted">Analisi della traccia in corso...</p>
-                            </div>
-                        )}
-
-                        {audioData.bpm && !loading && (
-                            <div className="card bg-dark text-white border-secondary mt-5 p-4">
-                                <h3 className="h5 mb-3 text-muted">File: <span className="text-white">{file?.name}</span></h3>
-                                <div className="row text-center">
-                                    <div className="col-6 border-end border-secondary">
-                                        <span className="text-muted d-block small fw-bold">TEMPO</span>
-                                        <span className="display-4 fw-bold text-success">{audioData.bpm}</span> <span className="text-muted">BPM</span>
-                                    </div>
-                                    <div className="col-6">
-                                        <span className="text-muted d-block small fw-bold">TONALITÀ</span>
-                                        <span className="display-4 fw-bold text-info">{audioData.keyName}</span>
-                                    </div>
+                            <div className="row text-center">
+                                <div className="col-6 border-end border-secondary">
+                                    <span className="text-muted d-block small fw-bold">TEMPO (REALE)</span>
+                                    <span className="display-4 fw-bold text-white">{audioData.bpm}</span> <span className="text-muted">BPM</span>
+                                </div>
+                                <div className="col-6">
+                                    <span className="text-muted d-block small fw-bold">TONALITÀ (SPOTIFY)</span>
+                                    <span className="display-4 fw-bold text-info">{audioData.keyName}</span>
                                 </div>
                             </div>
-                        )}
+                        </div>
+                    )}
 
-                    </div>
                 </div>
-            )}
+            </div>
         </div>
     );
 }
