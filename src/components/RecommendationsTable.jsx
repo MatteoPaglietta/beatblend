@@ -1,37 +1,54 @@
+const SECTIONS = [
+    { key: 'bothMatch', label: 'BPM + Tonalità', sub: 'Compatibili per entrambi i parametri' },
+    { key: 'bpmOnly',   label: 'Solo BPM',       sub: 'Stesso ritmo, tonalità diversa' },
+    { key: 'keyOnly',   label: 'Solo Tonalità',   sub: 'Stessa chiave, BPM diverso' },
+];
+
 function TrackTable({ tracks }) {
-    if (!tracks?.length) return <p className="text-secondary mb-0 ps-1">Nessun risultato in questa categoria.</p>;
+    if (!tracks?.length) return (
+        <div className="rec-empty">Nessun risultato in questa categoria.</div>
+    );
 
     return (
-        <div className="neo-card p-0 overflow-hidden">
+        <div className="rec-table-wrap">
+            <div className="rec-scroll-hint" aria-hidden="true">
+                <span className="rec-scroll-hint__icon">↔</span>
+                <span>Scorri la tabella per vedere tutti i valori</span>
+            </div>
             <div className="table-responsive">
                 <table className="table neo-table align-middle mb-0">
                     <thead>
                         <tr>
-                            <th>#</th>
-                            <th>Titolo</th>
-                            <th>Artista</th>
-                            <th className="text-center">BPM</th>
-                            <th className="text-center">Tonalità</th>
-                            <th className="text-end">Ascolta</th>
+                            <th className="rec-th rec-th--num">#</th>
+                            <th className="rec-th">Titolo</th>
+                            <th className="rec-th rec-th--artist">Artista</th>
+                            <th className="rec-th text-center rec-th--chip">BPM</th>
+                            <th className="rec-th text-center rec-th--chip">Tonalità</th>
+                            <th className="rec-th text-end"></th>
                         </tr>
                     </thead>
                     <tbody>
                         {tracks.map((track, index) => (
-                            <tr key={track.id}>
-                                <td className="text-secondary">{index + 1}</td>
-                                <td className="fw-semibold text-white">{track.title}</td>
-                                <td className="text-info">{track.artist?.name}</td>
-                                <td className="text-center fw-semibold">{track.bpm}</td>
-                                <td className="text-center accent-text fw-semibold">{track.bpm_key}</td>
-                                <td className="text-end">
+                            <tr key={track.id} className="rec-row">
+                                <td className="rec-td rec-td--num">{index + 1}</td>
+                                <td className="rec-td rec-td--title">{track.title}</td>
+                                <td className="rec-td rec-td--artist">{track.artist?.name}</td>
+                                <td className="rec-td text-center">
+                                    <span className="rec-chip">{track.bpm}</span>
+                                </td>
+                                <td className="rec-td text-center">
+                                    <span className="rec-chip rec-chip--key">{track.bpm_key}</span>
+                                </td>
+                                <td className="rec-td text-end">
                                     <a
                                         href={track.link}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="btn neo-btn btn-sm px-3"
-                                        aria-label={`Apri ${track.title}`}
+                                        className="rec-link"
+                                        aria-label={`Apri ${track.title} su Deezer`}
                                     >
-                                        Apri Traccia
+                                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" width="13" height="13"><path d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42L17.59 5H14V3zM5 5h6v2H7v10h10v-4h2v6H5V5z" fill="currentColor"/></svg>
+                                        Apri
                                     </a>
                                 </td>
                             </tr>
@@ -45,7 +62,9 @@ function TrackTable({ tracks }) {
 
 function RecommendationsTable({ recommendations }) {
     const { bothMatch = [], bpmOnly = [], keyOnly = [] } = recommendations || {};
-    const total = bothMatch.length + bpmOnly.length + keyOnly.length;
+    const counts = { bothMatch: bothMatch.length, bpmOnly: bpmOnly.length, keyOnly: keyOnly.length };
+    const total = counts.bothMatch + counts.bpmOnly + counts.keyOnly;
+    const data = { bothMatch, bpmOnly, keyOnly };
 
     if (total === 0) return null;
 
@@ -56,29 +75,18 @@ function RecommendationsTable({ recommendations }) {
                 <span className="table-count">{total} risultati</span>
             </div>
 
-            <div className="mb-4">
-                <div className="d-flex align-items-center gap-2 mb-2">
-                    <span className="rec-badge rec-badge--both">BPM + Tonalità</span>
-                    <span className="table-count">{bothMatch.length}</span>
+            {SECTIONS.map(({ key, label, sub }, i) => (
+                <div key={key} className={i < SECTIONS.length - 1 ? 'mb-5' : 'mb-2'}>
+                    <div className="rec-section-header">
+                        <div>
+                            <span className="rec-section-title">{label}</span>
+                            <span className="rec-section-sub">{sub}</span>
+                        </div>
+                        <span className="rec-section-count">{counts[key]}</span>
+                    </div>
+                    <TrackTable tracks={data[key]} />
                 </div>
-                <TrackTable tracks={bothMatch} />
-            </div>
-
-            <div className="mb-4">
-                <div className="d-flex align-items-center gap-2 mb-2">
-                    <span className="rec-badge rec-badge--bpm">Solo BPM</span>
-                    <span className="table-count">{bpmOnly.length}</span>
-                </div>
-                <TrackTable tracks={bpmOnly} />
-            </div>
-
-            <div className="mb-2">
-                <div className="d-flex align-items-center gap-2 mb-2">
-                    <span className="rec-badge rec-badge--key">Solo Tonalità</span>
-                    <span className="table-count">{keyOnly.length}</span>
-                </div>
-                <TrackTable tracks={keyOnly} />
-            </div>
+            ))}
         </section>
     );
 }

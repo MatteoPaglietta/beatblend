@@ -42,6 +42,8 @@ function IconVolume({ muted, volume }) {
 
 function FloatingPlayer({ file, title }) {
     const audioRef = useRef(null);
+    const titleViewportRef = useRef(null);
+    const titleTextRef = useRef(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
@@ -50,9 +52,12 @@ function FloatingPlayer({ file, title }) {
     const [isMuted, setIsMuted] = useState(false);
     const [isVolumeOpen, setIsVolumeOpen] = useState(false);
     const [isVolumeMounted, setIsVolumeMounted] = useState(false);
+    const [isTitleOverflowing, setIsTitleOverflowing] = useState(false);
+    const [titleShift, setTitleShift] = useState(0);
     const volumePopoverRef = useRef(null);
     const volumeCloseTimerRef = useRef(null);
     const volumeFadeTimerRef = useRef(null);
+    const closeVolumePopoverRef = useRef(null);
 
     const objectUrl = useMemo(() => {
         if (!file) return null;
@@ -93,7 +98,7 @@ function FloatingPlayer({ file, title }) {
         const onDocumentPointerDown = (event) => {
             if (!volumePopoverRef.current) return;
             if (!volumePopoverRef.current.contains(event.target)) {
-                closeVolumePopover();
+                closeVolumePopoverRef.current?.();
             }
         };
 
@@ -123,7 +128,7 @@ function FloatingPlayer({ file, title }) {
         }
 
         volumeCloseTimerRef.current = setTimeout(() => {
-            setIsVolumeOpen(false);
+            closeVolumePopoverRef.current?.();
         }, 3000);
 
         return () => {
@@ -134,7 +139,59 @@ function FloatingPlayer({ file, title }) {
         };
     }, [isVolumeOpen]);
 
+    const displayedTitle = title || file?.name || '';
+
+    useEffect(() => {
+        const measureTitleOverflow = () => {
+            const viewport = titleViewportRef.current;
+            const text = titleTextRef.current;
+            if (!viewport || !text) {
+                setIsTitleOverflowing(false);
+                setTitleShift(0);
+                return;
+            }
+
+            const overflowWidth = Math.ceil(text.scrollWidth - viewport.clientWidth);
+            const hasOverflow = overflowWidth > 2;
+
+            setIsTitleOverflowing(hasOverflow);
+            setTitleShift(hasOverflow ? overflowWidth + 24 : 0);
+        };
+
+        measureTitleOverflow();
+        window.addEventListener('resize', measureTitleOverflow);
+
+        let resizeObserver;
+        if (typeof ResizeObserver !== 'undefined') {
+            resizeObserver = new ResizeObserver(measureTitleOverflow);
+            if (titleViewportRef.current) resizeObserver.observe(titleViewportRef.current);
+            if (titleTextRef.current) resizeObserver.observe(titleTextRef.current);
+        }
+
+        return () => {
+            window.removeEventListener('resize', measureTitleOverflow);
+            if (resizeObserver) resizeObserver.disconnect();
+        };
+    }, [displayedTitle]);
+
     if (!file || !objectUrl) return null;
+
+    const closeVolumePopover = () => {
+        setIsVolumeOpen(false);
+        if (volumeCloseTimerRef.current) {
+            clearTimeout(volumeCloseTimerRef.current);
+            volumeCloseTimerRef.current = null;
+        }
+        if (volumeFadeTimerRef.current) {
+            clearTimeout(volumeFadeTimerRef.current);
+        }
+        volumeFadeTimerRef.current = setTimeout(() => {
+            setIsVolumeMounted(false);
+            volumeFadeTimerRef.current = null;
+        }, 180);
+    };
+
+    closeVolumePopoverRef.current = closeVolumePopover;
 
     const togglePlay = async () => {
         const audio = audioRef.current;
@@ -200,21 +257,6 @@ function FloatingPlayer({ file, title }) {
         setIsVolumeOpen(true);
     };
 
-    const closeVolumePopover = () => {
-        setIsVolumeOpen(false);
-        if (volumeCloseTimerRef.current) {
-            clearTimeout(volumeCloseTimerRef.current);
-            volumeCloseTimerRef.current = null;
-        }
-        if (volumeFadeTimerRef.current) {
-            clearTimeout(volumeFadeTimerRef.current);
-        }
-        volumeFadeTimerRef.current = setTimeout(() => {
-            setIsVolumeMounted(false);
-            volumeFadeTimerRef.current = null;
-        }, 180);
-    };
-
     const onVolumeChange = (event) => {
         const next = Number(event.target.value);
         setVolume(next);
@@ -254,7 +296,13 @@ function FloatingPlayer({ file, title }) {
         <aside className="floating-player" aria-label="Player traccia caricata">
             <audio ref={audioRef} src={objectUrl} preload="metadata" onLoadedMetadata={onLoadedMetadata} onTimeUpdate={onTimeUpdate} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} onEnded={onEnded} />
             <div className="floating-player__meta">
-                <strong className="floating-player__title">{title || file.name}</strong>
+                <div
+                    ref={titleViewportRef}
+                    className={`floating-player__title-viewport${isTitleOverflowing ? ' is-overflowing' : ''}`}
+                    style={{ '--title-shift': `${titleShift}px` }}
+                >
+                    <strong ref={titleTextRef} className="floating-player__title" title={displayedTitle}>{displayedTitle}</strong>
+                </div>
             </div>
             <div className="floating-player__timeline">
                 <span className="floating-player__time">{formatTime(currentTime)}</span>

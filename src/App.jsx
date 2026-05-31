@@ -34,6 +34,8 @@ function App() {
         setTheme(selectedTheme);
     };
 
+    const playerTitle = file?.name?.replace(/\.[^/.]+$/, '').trim();
+
     return (
         <main className="app-shell">
             <div className="container py-4 py-md-5">
@@ -46,7 +48,7 @@ function App() {
                         <section className="neo-surface p-3 p-md-4" aria-label="Analisi traccia audio">
                             <UploadDropzone onDrop={onDrop} />
                             <ErrorAlert message={error} />
-                            {loading && <LoadingState progress={progress} />}
+                            {loading && <LoadingState progress={progress} fileName={file?.name} />}
                             <AnalysisCard audioData={audioData} loading={loading} />
                             <RecommendationsTable recommendations={recommendations} />
                             {file && <p className="file-badge mt-3 mb-0">File caricato: {file.name}</p>}
@@ -56,7 +58,7 @@ function App() {
             </div>
             <FloatingPlayer
                 file={file}
-                title={audioData?.title}
+                title={playerTitle}
                 artist={audioData?.artist}
             />
         </main>

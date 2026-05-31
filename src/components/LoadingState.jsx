@@ -1,6 +1,8 @@
-function LoadingState({ progress }) {
+function LoadingState({ progress, fileName }) {
     const { current = 0, total = 0 } = progress || {};
     const isAnalyzing = total > 0;
+    const cleanFileName = (fileName || '').replace(/\.[^/.]+$/, '').trim();
+    const loadingLabel = cleanFileName ? `Analisi "${cleanFileName}" in corso...` : 'Analisi della traccia in corso...';
 
     return (
         <div className="neo-loading text-center my-4" role="status" aria-live="polite">
@@ -17,7 +19,7 @@ function LoadingState({ progress }) {
             </div>
             {isAnalyzing ? (
                 <div className="mt-3">
-                    <p className="mb-1 text-secondary">Analisi candidati in corso...</p>
+                    <p className="mb-1 text-secondary">Cercando i mix migliori...</p>
                     <div className="progress-track">
                         <div
                             className="progress-fill"
@@ -33,7 +35,7 @@ function LoadingState({ progress }) {
                     </p>
                 </div>
             ) : (
-                <p className="mt-3 mb-0 text-secondary">Analisi della traccia in corso...</p>
+                <p className="mt-3 mb-0 text-secondary">{loadingLabel}</p>
             )}
         </div>
     );
