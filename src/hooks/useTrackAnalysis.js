@@ -46,7 +46,6 @@ export function useTrackAnalysis() {
                 keyName: calculatedKey.keyName,
             });
 
-            console.log(`📍 Target: BPM ${roundedBpm}, Key ${calculatedKey.keyName}`);
             const recommendedTracks = await fetchTrackRecommendations({
                 title: trackTitle,
                 artist: trackArtist,

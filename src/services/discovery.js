@@ -320,10 +320,6 @@ export async function fetchTrackRecommendations({ targetBpm, targetKeyName, onPr
         }
     }
 
-    console.log(
-        `[Discovery] target=${targetBpm}/${targetKeyName} candidates=${prioritized.length} bpmKnown=${bpmKnown} both=${bothMatch.length} bpmOnly=${bpmOnly.length} keyOnly=${keyOnly.length}`,
-    );
-
     const sortByBpmDistance = (first, second) => {
         const firstDelta = first.bpm ? Math.abs(first.bpm - targetBpm) : Number.MAX_SAFE_INTEGER;
         const secondDelta = second.bpm ? Math.abs(second.bpm - targetBpm) : Number.MAX_SAFE_INTEGER;

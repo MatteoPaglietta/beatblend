@@ -58,7 +58,7 @@ function RecommendationsTable({ recommendations }) {
 
             <div className="mb-4">
                 <div className="d-flex align-items-center gap-2 mb-2">
-                    <span className="rec-badge rec-badge--both">🎯 BPM + Tonalità</span>
+                    <span className="rec-badge rec-badge--both">BPM + Tonalità</span>
                     <span className="table-count">{bothMatch.length}</span>
                 </div>
                 <TrackTable tracks={bothMatch} />
@@ -66,7 +66,7 @@ function RecommendationsTable({ recommendations }) {
 
             <div className="mb-4">
                 <div className="d-flex align-items-center gap-2 mb-2">
-                    <span className="rec-badge rec-badge--bpm">🥁 Solo BPM</span>
+                    <span className="rec-badge rec-badge--bpm">Solo BPM</span>
                     <span className="table-count">{bpmOnly.length}</span>
                 </div>
                 <TrackTable tracks={bpmOnly} />
@@ -74,7 +74,7 @@ function RecommendationsTable({ recommendations }) {
 
             <div className="mb-2">
                 <div className="d-flex align-items-center gap-2 mb-2">
-                    <span className="rec-badge rec-badge--key">🎵 Solo Tonalità</span>
+                    <span className="rec-badge rec-badge--key">Solo Tonalità</span>
                     <span className="table-count">{keyOnly.length}</span>
                 </div>
                 <TrackTable tracks={keyOnly} />
