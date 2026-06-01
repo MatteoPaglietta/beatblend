@@ -11,7 +11,7 @@ import FloatingPlayer from './components/FloatingPlayer';
 import { useTrackAnalysis } from './hooks/useTrackAnalysis';
 
 function App() {
-    const { file, loading, error, audioData, recommendations, progress, onDrop } = useTrackAnalysis();
+    const { file, analysisLoading, recommendationsLoading, error, audioData, recommendations, progress, onDrop } = useTrackAnalysis();
     const [theme, setTheme] = useState(() => {
         const storedTheme = localStorage.getItem('bb-theme');
         if (storedTheme === 'light' || storedTheme === 'dark') {
@@ -48,8 +48,9 @@ function App() {
                         <section className="neo-surface p-3 p-md-4" aria-label="Analisi traccia audio">
                             <UploadDropzone onDrop={onDrop} />
                             <ErrorAlert message={error} />
-                            {loading && <LoadingState progress={progress} fileName={file?.name} />}
-                            <AnalysisCard audioData={audioData} loading={loading} />
+                            {analysisLoading && <LoadingState fileName={file?.name} phase="analysis" />}
+                            <AnalysisCard audioData={audioData} loading={analysisLoading} />
+                            {recommendationsLoading && <LoadingState progress={progress} fileName={file?.name} phase="recommendations" />}
                             <RecommendationsTable recommendations={recommendations} />
                             {file && <p className="file-badge mt-3 mb-0">File caricato: {file.name}</p>}
                         </section>

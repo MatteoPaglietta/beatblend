@@ -275,7 +275,14 @@ function FloatingPlayer({ file, title }) {
         }
     };
 
+    const isTouchDevice = () => window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+
     const onVolumeIconClick = () => {
+        if (isTouchDevice()) {
+            toggleMute();
+            return;
+        }
+
         if (!isVolumeMounted) {
             openVolumePopover();
             restartAutoCloseTimer();

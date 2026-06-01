@@ -65,7 +65,8 @@ function chooseDisplayBpm(detectedBpm, tagBpm) {
 
 export function useTrackAnalysis() {
     const [file, setFile] = useState(null);
-    const [loading, setLoading] = useState(false);
+    const [analysisLoading, setAnalysisLoading] = useState(false);
+    const [recommendationsLoading, setRecommendationsLoading] = useState(false);
     const [audioData, setAudioData] = useState({ title: null, artist: null, bpm: null, keyName: null });
     const [recommendations, setRecommendations] = useState({ bothMatch: [], bpmOnly: [], keyOnly: [] });
     const [error, setError] = useState(null);
@@ -78,7 +79,8 @@ export function useTrackAnalysis() {
         }
 
         setFile(uploadedFile);
-        setLoading(true);
+        setAnalysisLoading(true);
+        setRecommendationsLoading(false);
         setError(null);
         setRecommendations({ bothMatch: [], bpmOnly: [], keyOnly: [] });
         setProgress({ current: 0, total: 0 });
@@ -96,22 +98,24 @@ export function useTrackAnalysis() {
             const normalizedBpm = chooseDisplayBpm(tempo, tags.bpm);
             const trackTitle = tags.title || uploadedFile.name.replace(/\.[^/.]+$/, '');
             const trackArtist = tags.artist || 'Artista Sconosciuto';
-            const calculatedKey = tags.keyName
-                ? { keyName: tags.keyName }
-                : await analyzeKeyFromBuffer(audioBuffer);
+            const calculatedKey = await analyzeKeyFromBuffer(audioBuffer);
+            const finalKeyName = calculatedKey.keyName || tags.keyName;
 
             setAudioData({
                 title: trackTitle,
                 artist: trackArtist,
                 bpm: normalizedBpm,
-                keyName: calculatedKey.keyName,
+                keyName: finalKeyName,
             });
+
+            setAnalysisLoading(false);
+            setRecommendationsLoading(true);
 
             const recommendedTracks = await fetchTrackRecommendations({
                 title: trackTitle,
                 artist: trackArtist,
                 targetBpm: normalizedBpm,
-                targetKeyName: calculatedKey.keyName,
+                targetKeyName: finalKeyName,
                 onProgress: (current, total) => setProgress({ current, total }),
             });
             setRecommendations(recommendedTracks);
@@ -123,13 +127,16 @@ export function useTrackAnalysis() {
                 await audioCtx.close();
             }
 
-            setLoading(false);
+            setAnalysisLoading(false);
+            setRecommendationsLoading(false);
         }
     }, []);
 
     return {
         file,
-        loading,
+        analysisLoading,
+        recommendationsLoading,
+        loading: analysisLoading || recommendationsLoading,
         error,
         audioData,
         recommendations,

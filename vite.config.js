@@ -17,8 +17,16 @@ export default defineConfig({
     }
   },
   build: {
+    chunkSizeWarningLimit: 3000,
     rollupOptions: {
       external: ['fs', 'react-native-fs', 'path'],
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/essentia.js')) {
+            return 'essentia';
+          }
+        },
+      },
     },
   },
 })
